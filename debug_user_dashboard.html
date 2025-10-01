@@ -1,0 +1,208 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Debug User Dashboard</title>
+    <style>
+        body { font-family: Arial, sans-serif; margin: 20px; }
+        .debug-section { margin: 20px 0; padding: 15px; border: 1px solid #ccc; border-radius: 5px; }
+        .error { background: #f8d7da; color: #721c24; }
+        .success { background: #d4edda; color: #155724; }
+        .info { background: #d1ecf1; color: #0c5460; }
+        button { padding: 10px 20px; margin: 5px; background: #007bff; color: white; border: none; border-radius: 4px; cursor: pointer; }
+        button:hover { background: #0056b3; }
+        pre { background: #f8f9fa; padding: 10px; border-radius: 4px; overflow-x: auto; }
+    </style>
+</head>
+<body>
+    <h1>User Dashboard Debug Tool</h1>
+    
+    <div class="debug-section">
+        <h3>1. Check Authentication</h3>
+        <button onclick="checkAuth()">Check Token</button>
+        <div id="authResult"></div>
+    </div>
+    
+    <div class="debug-section">
+        <h3>2. Test Bookings API</h3>
+        <button onclick="testBookingsAPI()">Load Bookings</button>
+        <div id="bookingsResult"></div>
+    </div>
+    
+    <div class="debug-section">
+        <h3>3. Test Services API</h3>
+        <button onclick="testServicesAPI()">Load Services</button>
+        <div id="servicesResult"></div>
+    </div>
+    
+    <div class="debug-section">
+        <h3>4. Test User Data</h3>
+        <button onclick="testUserData()">Load User Data</button>
+        <div id="userDataResult"></div>
+    </div>
+    
+    <div class="debug-section">
+        <h3>5. Console Logs</h3>
+        <button onclick="clearLogs()">Clear Logs</button>
+        <div id="consoleLogs"></div>
+    </div>
+
+    <script>
+        // Override console.log to capture logs
+        const originalLog = console.log;
+        const originalError = console.error;
+        const logs = [];
+        
+        console.log = function(...args) {
+            logs.push({type: 'log', message: args.join(' '), timestamp: new Date().toISOString()});
+            originalLog.apply(console, args);
+            updateConsoleLogs();
+        };
+        
+        console.error = function(...args) {
+            logs.push({type: 'error', message: args.join(' '), timestamp: new Date().toISOString()});
+            originalError.apply(console, args);
+            updateConsoleLogs();
+        };
+        
+        function updateConsoleLogs() {
+            const container = document.getElementById('consoleLogs');
+            container.innerHTML = logs.map(log => 
+                `<div class="${log.type === 'error' ? 'error' : 'info'}" style="margin: 2px 0; padding: 5px; border-radius: 3px;">
+                    <strong>${log.timestamp}</strong> - ${log.message}
+                </div>`
+            ).join('');
+        }
+        
+        function clearLogs() {
+            logs.length = 0;
+            updateConsoleLogs();
+        }
+        
+        function checkAuth() {
+            const token = localStorage.getItem('token');
+            const result = document.getElementById('authResult');
+            
+            if (!token) {
+                result.innerHTML = '<div class="error">No token found in localStorage</div>';
+                return;
+            }
+            
+            try {
+                const payload = JSON.parse(atob(token.split('.')[1]));
+                const claims = payload?.sub && typeof payload.sub === 'object' ? payload.sub : (payload?.claims || payload);
+                result.innerHTML = `
+                    <div class="success">Token found and parsed successfully</div>
+                    <pre>${JSON.stringify(claims, null, 2)}</pre>
+                `;
+            } catch (e) {
+                result.innerHTML = `<div class="error">Error parsing token: ${e.message}</div>`;
+            }
+        }
+        
+        async function testBookingsAPI() {
+            const token = localStorage.getItem('token');
+            const result = document.getElementById('bookingsResult');
+            
+            if (!token) {
+                result.innerHTML = '<div class="error">No token found</div>';
+                return;
+            }
+            
+            try {
+                console.log('Testing bookings API...');
+                const response = await fetch('/bookings/user', {
+                    headers: { 'Authorization': `Bearer ${token}` }
+                });
+                
+                console.log('Bookings API response status:', response.status);
+                
+                if (response.ok) {
+                    const bookings = await response.json();
+                    console.log('Bookings loaded:', bookings);
+                    result.innerHTML = `
+                        <div class="success">Bookings loaded successfully (${bookings.length} bookings)</div>
+                        <pre>${JSON.stringify(bookings, null, 2)}</pre>
+                    `;
+                } else {
+                    const error = await response.text();
+                    console.error('Bookings API error:', error);
+                    result.innerHTML = `<div class="error">API Error: ${response.status} - ${error}</div>`;
+                }
+            } catch (error) {
+                console.error('Bookings API exception:', error);
+                result.innerHTML = `<div class="error">Exception: ${error.message}</div>`;
+            }
+        }
+        
+        async function testServicesAPI() {
+            const result = document.getElementById('servicesResult');
+            
+            try {
+                console.log('Testing services API...');
+                const response = await fetch('/services');
+                
+                console.log('Services API response status:', response.status);
+                
+                if (response.ok) {
+                    const services = await response.json();
+                    console.log('Services loaded:', services);
+                    result.innerHTML = `
+                        <div class="success">Services loaded successfully (${services.length} services)</div>
+                        <pre>${JSON.stringify(services, null, 2)}</pre>
+                    `;
+                } else {
+                    const error = await response.text();
+                    console.error('Services API error:', error);
+                    result.innerHTML = `<div class="error">API Error: ${response.status} - ${error}</div>`;
+                }
+            } catch (error) {
+                console.error('Services API exception:', error);
+                result.innerHTML = `<div class="error">Exception: ${error.message}</div>`;
+            }
+        }
+        
+        async function testUserData() {
+            const token = localStorage.getItem('token');
+            const result = document.getElementById('userDataResult');
+            
+            if (!token) {
+                result.innerHTML = '<div class="error">No token found</div>';
+                return;
+            }
+            
+            try {
+                console.log('Testing user data API...');
+                const response = await fetch('/me', {
+                    headers: { 'Authorization': `Bearer ${token}` }
+                });
+                
+                console.log('User data API response status:', response.status);
+                
+                if (response.ok) {
+                    const userData = await response.json();
+                    console.log('User data loaded:', userData);
+                    result.innerHTML = `
+                        <div class="success">User data loaded successfully</div>
+                        <pre>${JSON.stringify(userData, null, 2)}</pre>
+                    `;
+                } else {
+                    const error = await response.text();
+                    console.error('User data API error:', error);
+                    result.innerHTML = `<div class="error">API Error: ${response.status} - ${error}</div>`;
+                }
+            } catch (error) {
+                console.error('User data API exception:', error);
+                result.innerHTML = `<div class="error">Exception: ${error.message}</div>`;
+            }
+        }
+        
+        // Auto-run checks on page load
+        window.addEventListener('load', function() {
+            console.log('Debug page loaded');
+            checkAuth();
+        });
+    </script>
+</body>
+</html>

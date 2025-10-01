@@ -1,0 +1,25 @@
+{% extends 'base.html' %}
+{% block content %}
+<h2>Booking Tracking</h2>
+<p>Booking ID: <span id="bid">{{ booking_id }}</span></p>
+<div class="alert alert-info" id="status">Waiting for updates...</div>
+<div id="map" style="height: 420px;"></div>
+{% endblock %}
+{% block scripts %}
+<script>
+const bookingId = Number(document.getElementById('bid').textContent);
+const socket = io();
+socket.emit('join', { room: `booking_${bookingId}` });
+socket.on('booking_status', (payload) => {
+  if (payload.id === bookingId) {
+    document.getElementById('status').textContent = `Status: ${payload.status}`;
+  }
+});
+
+const map = L.map('map').setView([28.6139, 77.2090], 11);
+L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', {
+  attribution: '© OpenStreetMap contributors'
+}).addTo(map);
+</script>
+{% endblock %}
+

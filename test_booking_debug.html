@@ -1,0 +1,172 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Booking Debug Test</title>
+    <style>
+        body { font-family: Arial, sans-serif; margin: 20px; }
+        .section { margin: 20px 0; padding: 15px; border: 1px solid #ccc; }
+        button { padding: 10px 15px; margin: 5px; cursor: pointer; }
+        .error { color: red; }
+        .success { color: green; }
+        .info { color: blue; }
+    </style>
+</head>
+<body>
+    <h1>Booking Debug Test</h1>
+    
+    <div class="section">
+        <h3>1. Test Services Endpoint</h3>
+        <button onclick="testServices()">Test Services</button>
+        <div id="servicesResult"></div>
+    </div>
+    
+    <div class="section">
+        <h3>2. Test Providers Endpoint</h3>
+        <button onclick="testProviders()">Test Providers</button>
+        <div id="providersResult"></div>
+    </div>
+    
+    <div class="section">
+        <h3>3. Test Booking Creation</h3>
+        <button onclick="testBookingCreation()">Test Booking Creation</button>
+        <div id="bookingResult"></div>
+    </div>
+    
+    <div class="section">
+        <h3>4. Create Test Providers</h3>
+        <button onclick="createTestProviders()">Create Test Providers</button>
+        <div id="testProvidersResult"></div>
+    </div>
+
+    <script>
+        const baseUrl = 'http://localhost:5000';
+        
+        async function testServices() {
+            const resultDiv = document.getElementById('servicesResult');
+            resultDiv.innerHTML = '<span class="info">Testing...</span>';
+            
+            try {
+                const response = await fetch(`${baseUrl}/services`);
+                const services = await response.json();
+                
+                if (response.ok) {
+                    resultDiv.innerHTML = `
+                        <span class="success">✅ Services loaded: ${services.length}</span>
+                        <pre>${JSON.stringify(services.slice(0, 2), null, 2)}</pre>
+                    `;
+                } else {
+                    resultDiv.innerHTML = `<span class="error">❌ Error: ${response.status}</span>`;
+                }
+            } catch (error) {
+                resultDiv.innerHTML = `<span class="error">❌ Error: ${error.message}</span>`;
+            }
+        }
+        
+        async function testProviders() {
+            const resultDiv = document.getElementById('providersResult');
+            resultDiv.innerHTML = '<span class="info">Testing...</span>';
+            
+            try {
+                const response = await fetch(`${baseUrl}/providers/nearby?lat=28.6139&lon=77.2090`);
+                const providers = await response.json();
+                
+                if (response.ok) {
+                    resultDiv.innerHTML = `
+                        <span class="success">✅ Providers loaded: ${providers.length}</span>
+                        <pre>${JSON.stringify(providers.slice(0, 2), null, 2)}</pre>
+                    `;
+                } else {
+                    resultDiv.innerHTML = `<span class="error">❌ Error: ${response.status}</span>`;
+                }
+            } catch (error) {
+                resultDiv.innerHTML = `<span class="error">❌ Error: ${error.message}</span>`;
+            }
+        }
+        
+        async function createTestProviders() {
+            const resultDiv = document.getElementById('testProvidersResult');
+            resultDiv.innerHTML = '<span class="info">Creating...</span>';
+            
+            try {
+                const response = await fetch(`${baseUrl}/debug/create-test-providers`, {
+                    method: 'POST'
+                });
+                
+                if (response.ok) {
+                    resultDiv.innerHTML = '<span class="success">✅ Test providers created successfully</span>';
+                } else {
+                    const error = await response.text();
+                    resultDiv.innerHTML = `<span class="error">❌ Error: ${response.status} - ${error}</span>`;
+                }
+            } catch (error) {
+                resultDiv.innerHTML = `<span class="error">❌ Error: ${error.message}</span>`;
+            }
+        }
+        
+        async function testBookingCreation() {
+            const resultDiv = document.getElementById('bookingResult');
+            resultDiv.innerHTML = '<span class="info">Testing...</span>';
+            
+            try {
+                // First get services and providers
+                const servicesResponse = await fetch(`${baseUrl}/services`);
+                const services = await servicesResponse.json();
+                
+                const providersResponse = await fetch(`${baseUrl}/providers/nearby?lat=28.6139&lon=77.2090`);
+                const providers = await providersResponse.json();
+                
+                if (services.length === 0 || providers.length === 0) {
+                    resultDiv.innerHTML = '<span class="error">❌ No services or providers available</span>';
+                    return;
+                }
+                
+                // Try to create a booking (will fail due to no auth, but we can see the response)
+                const bookingData = {
+                    service_id: services[0].id,
+                    provider_id: providers[0].id,
+                    urgency: 'Normal',
+                    duration: 2,
+                    notes: 'Test booking',
+                    location_lat: 28.6139,
+                    location_lon: 77.2090,
+                    price: 100
+                };
+                
+                const response = await fetch(`${baseUrl}/bookings/create`, {
+                    method: 'POST',
+                    headers: {
+                        'Content-Type': 'application/json'
+                    },
+                    body: JSON.stringify(bookingData)
+                });
+                
+                const result = await response.json();
+                
+                if (response.status === 401) {
+                    resultDiv.innerHTML = `
+                        <span class="success">✅ Endpoint working (401 - unauthorized as expected)</span>
+                        <pre>Booking Data: ${JSON.stringify(bookingData, null, 2)}</pre>
+                        <pre>Response: ${JSON.stringify(result, null, 2)}</pre>
+                    `;
+                } else {
+                    resultDiv.innerHTML = `
+                        <span class="error">❌ Unexpected response: ${response.status}</span>
+                        <pre>Response: ${JSON.stringify(result, null, 2)}</pre>
+                    `;
+                }
+            } catch (error) {
+                resultDiv.innerHTML = `<span class="error">❌ Error: ${error.message}</span>`;
+            }
+        }
+        
+        // Auto-run tests on page load
+        window.onload = function() {
+            testServices();
+            testProviders();
+        };
+    </script>
+</body>
+</html>
+

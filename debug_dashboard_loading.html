@@ -1,0 +1,350 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Dashboard Loading Debug Tool</title>
+    <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.3/dist/css/bootstrap.min.css" rel="stylesheet">
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
+    <style>
+        .debug-section { margin: 20px 0; padding: 15px; border: 1px solid #ddd; border-radius: 5px; }
+        .error { background: #f8d7da; color: #721c24; }
+        .success { background: #d4edda; color: #155724; }
+        .warning { background: #fff3cd; color: #856404; }
+        .info { background: #d1ecf1; color: #0c5460; }
+        pre { background: #f8f9fa; padding: 10px; border-radius: 4px; overflow-x: auto; font-size: 12px; }
+        .btn-test { margin: 5px; }
+        .loading { display: inline-block; width: 20px; height: 20px; border: 3px solid #f3f3f3; border-top: 3px solid #3498db; border-radius: 50%; animation: spin 1s linear infinite; }
+        @keyframes spin { 0% { transform: rotate(0deg); } 100% { transform: rotate(360deg); } }
+    </style>
+</head>
+<body>
+    <div class="container mt-4">
+        <h1>🔧 Dashboard Loading Debug Tool</h1>
+        <p class="text-muted">This tool will help diagnose why the user dashboard is stuck on loading.</p>
+        
+        <!-- Step 1: Authentication Check -->
+        <div class="debug-section">
+            <h3>1. Authentication Check</h3>
+            <button class="btn btn-primary btn-test" onclick="checkAuth()">Check Token</button>
+            <div id="authResult"></div>
+        </div>
+        
+        <!-- Step 2: API Endpoint Tests -->
+        <div class="debug-section">
+            <h3>2. API Endpoint Tests</h3>
+            <button class="btn btn-success btn-test" onclick="testAllAPIs()">Test All APIs</button>
+            <button class="btn btn-info btn-test" onclick="testBookingsAPI()">Test Bookings API</button>
+            <button class="btn btn-warning btn-test" onclick="testUserAPI()">Test User API</button>
+            <button class="btn btn-secondary btn-test" onclick="testServicesAPI()">Test Services API</button>
+            <div id="apiResults"></div>
+        </div>
+        
+        <!-- Step 3: Network Issues -->
+        <div class="debug-section">
+            <h3>3. Network & CORS Check</h3>
+            <button class="btn btn-primary btn-test" onclick="testNetwork()">Test Network</button>
+            <div id="networkResults"></div>
+        </div>
+        
+        <!-- Step 4: JavaScript Console -->
+        <div class="debug-section">
+            <h3>4. JavaScript Console Logs</h3>
+            <button class="btn btn-secondary btn-test" onclick="clearLogs()">Clear Logs</button>
+            <div id="consoleLogs"></div>
+        </div>
+        
+        <!-- Step 5: Manual Dashboard Test -->
+        <div class="debug-section">
+            <h3>5. Manual Dashboard Test</h3>
+            <button class="btn btn-primary btn-test" onclick="simulateDashboardLoad()">Simulate Dashboard Load</button>
+            <div id="dashboardTest"></div>
+        </div>
+        
+        <!-- Step 6: Quick Fixes -->
+        <div class="debug-section">
+            <h3>6. Quick Fixes</h3>
+            <div class="alert alert-info">
+                <h6>Common fixes for loading issues:</h6>
+                <ol>
+                    <li><strong>No token:</strong> <a href="/login" target="_blank">Login here</a> with testuser@example.com / password123</li>
+                    <li><strong>API errors:</strong> Check if Flask app is running on port 5000</li>
+                    <li><strong>CORS issues:</strong> Make sure you're accessing from localhost:5000</li>
+                    <li><strong>JavaScript errors:</strong> Check browser console (F12)</li>
+                    <li><strong>Database issues:</strong> Check Flask terminal for errors</li>
+                </ol>
+            </div>
+        </div>
+    </div>
+
+    <script>
+        // Capture console logs
+        const logs = [];
+        const originalLog = console.log;
+        const originalError = console.error;
+        const originalWarn = console.warn;
+        
+        console.log = function(...args) {
+            logs.push({type: 'log', message: args.join(' '), timestamp: new Date().toISOString()});
+            originalLog.apply(console, args);
+            updateConsoleLogs();
+        };
+        
+        console.error = function(...args) {
+            logs.push({type: 'error', message: args.join(' '), timestamp: new Date().toISOString()});
+            originalError.apply(console, args);
+            updateConsoleLogs();
+        };
+        
+        console.warn = function(...args) {
+            logs.push({type: 'warn', message: args.join(' '), timestamp: new Date().toISOString()});
+            originalWarn.apply(console, args);
+            updateConsoleLogs();
+        };
+        
+        function updateConsoleLogs() {
+            const container = document.getElementById('consoleLogs');
+            container.innerHTML = logs.slice(-15).map(log => 
+                `<div class="${log.type === 'error' ? 'error' : log.type === 'warn' ? 'warning' : 'info'}" style="margin: 2px 0; padding: 5px; border-radius: 3px; font-size: 12px;">
+                    <strong>${log.timestamp.split('T')[1].split('.')[0]}</strong> - ${log.message}
+                </div>`
+            ).join('');
+        }
+        
+        function clearLogs() {
+            logs.length = 0;
+            updateConsoleLogs();
+        }
+        
+        function checkAuth() {
+            const token = localStorage.getItem('token');
+            const result = document.getElementById('authResult');
+            
+            if (!token) {
+                result.innerHTML = '<div class="error">❌ No token found in localStorage. Please login first.</div>';
+                return;
+            }
+            
+            try {
+                const payload = JSON.parse(atob(token.split('.')[1]));
+                const claims = payload?.sub && typeof payload.sub === 'object' ? payload.sub : (payload?.claims || payload);
+                
+                result.innerHTML = `
+                    <div class="success">✅ Token found and parsed successfully</div>
+                    <div class="info">
+                        <strong>User ID:</strong> ${claims?.id || claims?.user_id || 'Unknown'}<br>
+                        <strong>Name:</strong> ${claims?.name || 'Unknown'}<br>
+                        <strong>Role:</strong> ${claims?.role || 'Unknown'}<br>
+                        <strong>Email:</strong> ${claims?.email || 'Unknown'}<br>
+                        <strong>Token Expiry:</strong> ${new Date(payload.exp * 1000).toLocaleString()}
+                    </div>
+                `;
+            } catch (e) {
+                result.innerHTML = `<div class="error">❌ Error parsing token: ${e.message}</div>`;
+            }
+        }
+        
+        async function testAllAPIs() {
+            console.log('Testing all APIs...');
+            await testUserAPI();
+            await testBookingsAPI();
+            await testServicesAPI();
+        }
+        
+        async function testUserAPI() {
+            const token = localStorage.getItem('token');
+            const result = document.getElementById('apiResults');
+            
+            if (!token) {
+                result.innerHTML += '<div class="error">❌ No token for user API test</div>';
+                return;
+            }
+            
+            try {
+                console.log('Testing /me endpoint...');
+                const response = await fetch('/me', {
+                    headers: { 'Authorization': `Bearer ${token}` }
+                });
+                
+                console.log('User API response status:', response.status);
+                
+                if (response.ok) {
+                    const userData = await response.json();
+                    console.log('User data loaded successfully:', userData);
+                    result.innerHTML += `
+                        <div class="success">✅ User API working - ${userData.name || 'Unknown'}</div>
+                    `;
+                } else {
+                    const error = await response.text();
+                    console.error('User API error:', error);
+                    result.innerHTML += `<div class="error">❌ User API Error: ${response.status} - ${error}</div>`;
+                }
+            } catch (error) {
+                console.error('User API exception:', error);
+                result.innerHTML += `<div class="error">❌ User API Exception: ${error.message}</div>`;
+            }
+        }
+        
+        async function testBookingsAPI() {
+            const token = localStorage.getItem('token');
+            const result = document.getElementById('apiResults');
+            
+            if (!token) {
+                result.innerHTML += '<div class="error">❌ No token for bookings API test</div>';
+                return;
+            }
+            
+            try {
+                console.log('Testing /bookings/user endpoint...');
+                const response = await fetch('/bookings/user', {
+                    headers: { 'Authorization': `Bearer ${token}` }
+                });
+                
+                console.log('Bookings API response status:', response.status);
+                
+                if (response.ok) {
+                    const bookings = await response.json();
+                    console.log('Bookings loaded successfully:', bookings);
+                    result.innerHTML += `
+                        <div class="success">✅ Bookings API working - ${bookings.length} bookings found</div>
+                    `;
+                } else {
+                    const error = await response.text();
+                    console.error('Bookings API error:', error);
+                    result.innerHTML += `<div class="error">❌ Bookings API Error: ${response.status} - ${error}</div>`;
+                }
+            } catch (error) {
+                console.error('Bookings API exception:', error);
+                result.innerHTML += `<div class="error">❌ Bookings API Exception: ${error.message}</div>`;
+            }
+        }
+        
+        async function testServicesAPI() {
+            const result = document.getElementById('apiResults');
+            
+            try {
+                console.log('Testing /services endpoint...');
+                const response = await fetch('/services');
+                
+                console.log('Services API response status:', response.status);
+                
+                if (response.ok) {
+                    const services = await response.json();
+                    console.log('Services loaded successfully:', services);
+                    result.innerHTML += `
+                        <div class="success">✅ Services API working - ${services.length} services found</div>
+                    `;
+                } else {
+                    const error = await response.text();
+                    console.error('Services API error:', error);
+                    result.innerHTML += `<div class="error">❌ Services API Error: ${response.status} - ${error}</div>`;
+                }
+            } catch (error) {
+                console.error('Services API exception:', error);
+                result.innerHTML += `<div class="error">❌ Services API Exception: ${error.message}</div>`;
+            }
+        }
+        
+        async function testNetwork() {
+            const result = document.getElementById('networkResults');
+            
+            try {
+                console.log('Testing network connectivity...');
+                
+                // Test basic connectivity
+                const response = await fetch('/');
+                console.log('Basic connectivity test:', response.status);
+                
+                // Test CORS
+                const corsResponse = await fetch('/bookings/user', {
+                    method: 'OPTIONS'
+                });
+                console.log('CORS test:', corsResponse.status);
+                
+                result.innerHTML = `
+                    <div class="success">✅ Network connectivity working</div>
+                    <div class="info">
+                        <strong>Basic connectivity:</strong> ${response.status}<br>
+                        <strong>CORS preflight:</strong> ${corsResponse.status}<br>
+                        <strong>Current URL:</strong> ${window.location.href}
+                    </div>
+                `;
+            } catch (error) {
+                console.error('Network test failed:', error);
+                result.innerHTML = `<div class="error">❌ Network test failed: ${error.message}</div>`;
+            }
+        }
+        
+        async function simulateDashboardLoad() {
+            const result = document.getElementById('dashboardTest');
+            result.innerHTML = '<div class="loading"></div> Simulating dashboard load...';
+            
+            try {
+                console.log('Simulating dashboard load process...');
+                
+                // Step 1: Check authentication
+                const token = localStorage.getItem('token');
+                if (!token) {
+                    result.innerHTML = '<div class="error">❌ No authentication token found</div>';
+                    return;
+                }
+                
+                // Step 2: Load user data
+                console.log('Loading user data...');
+                const userResponse = await fetch('/me', {
+                    headers: { 'Authorization': `Bearer ${token}` }
+                });
+                
+                if (!userResponse.ok) {
+                    result.innerHTML = `<div class="error">❌ User data load failed: ${userResponse.status}</div>`;
+                    return;
+                }
+                
+                // Step 3: Load bookings
+                console.log('Loading bookings...');
+                const bookingsResponse = await fetch('/bookings/user', {
+                    headers: { 'Authorization': `Bearer ${token}` }
+                });
+                
+                if (!bookingsResponse.ok) {
+                    result.innerHTML = `<div class="error">❌ Bookings load failed: ${bookingsResponse.status}</div>`;
+                    return;
+                }
+                
+                const bookings = await bookingsResponse.json();
+                
+                // Step 4: Load services
+                console.log('Loading services...');
+                const servicesResponse = await fetch('/services');
+                
+                if (!servicesResponse.ok) {
+                    result.innerHTML = `<div class="error">❌ Services load failed: ${servicesResponse.status}</div>`;
+                    return;
+                }
+                
+                const services = await servicesResponse.json();
+                
+                result.innerHTML = `
+                    <div class="success">✅ Dashboard simulation successful!</div>
+                    <div class="info">
+                        <strong>User data:</strong> Loaded successfully<br>
+                        <strong>Bookings:</strong> ${bookings.length} found<br>
+                        <strong>Services:</strong> ${services.length} found<br>
+                        <strong>All APIs:</strong> Working correctly
+                    </div>
+                `;
+                
+            } catch (error) {
+                console.error('Dashboard simulation failed:', error);
+                result.innerHTML = `<div class="error">❌ Dashboard simulation failed: ${error.message}</div>`;
+            }
+        }
+        
+        // Auto-run checks on page load
+        window.addEventListener('load', function() {
+            console.log('Debug page loaded');
+            checkAuth();
+        });
+    </script>
+</body>
+</html>
